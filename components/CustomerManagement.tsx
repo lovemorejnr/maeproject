@@ -21,7 +21,7 @@ import CustomerModal from './CustomerModal';
 
 interface CustomerManagementProps {
     customers: Customer[];
-    onAddCustomer: (customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => void;
+    onAddCustomer: (customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => Promise<void> | void;
     overview: CustomerDashboardData;
 }
 
@@ -65,9 +65,14 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({ customers, onAd
         }).format(amount);
     }
 
-    const handleSaveCustomer = (customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => {
-        onAddCustomer(customerData);
-        setIsModalOpen(false);
+    const handleSaveCustomer = async (customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => {
+        try {
+            await onAddCustomer(customerData);
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error('Unable to add customer', error);
+            throw error;
+        }
     };
 
     return (

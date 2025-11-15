@@ -10,7 +10,7 @@ import VehicleModal from './VehicleModal';
 interface VehicleInventoryProps {
   dealership: Dealership;
   onDeleteVehicle: (vehicleId: string) => void;
-  onUpdateVehicle: (vehicle: Vehicle) => void;
+  onUpdateVehicle: (vehicle: Vehicle) => Promise<void> | void;
 }
 
 const VehicleInventory: React.FC<VehicleInventoryProps> = ({ dealership, onDeleteVehicle, onUpdateVehicle }) => {
@@ -43,9 +43,14 @@ const VehicleInventory: React.FC<VehicleInventoryProps> = ({ dealership, onDelet
     }
   };
   
-  const handleSaveEdit = (vehicleData: Omit<Vehicle, 'id'> | Vehicle) => {
-    onUpdateVehicle(vehicleData as Vehicle);
-    setEditingVehicle(null);
+  const handleSaveEdit = async (vehicleData: Omit<Vehicle, 'id'> | Vehicle) => {
+    try {
+      await onUpdateVehicle(vehicleData as Vehicle);
+      setEditingVehicle(null);
+    } catch (error) {
+      console.error('Unable to update vehicle', error);
+      throw error;
+    }
   };
 
   const handleEditFromDetail = (vehicle: Vehicle) => {

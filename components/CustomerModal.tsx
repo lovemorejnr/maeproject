@@ -9,7 +9,7 @@ import { LocationMarkerIcon } from './icons/LocationMarkerIcon';
 interface CustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddCustomer: (customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => void;
+  onAddCustomer: (customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => Promise<void> | void;
 }
 
 // Helper component for input fields with icons
@@ -39,6 +39,8 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ isOpen, onClose, onAddCus
     type: 'Individual' as CustomerType,
     status: 'Lead' as CustomerStatus,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -48,11 +50,13 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ isOpen, onClose, onAddCus
     }));
   };
   
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    onAddCustomer(formData);
-    // Reset form for next use
-    setFormData({
+    setSubmitError(null);
+    setIsSubmitting(true);
+    try {
+      await onAddCustomer(formData);
+      setFormData({
         name: '',
         company: '',
         email: '',
@@ -60,7 +64,16 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ isOpen, onClose, onAddCus
         location: '',
         type: 'Individual' as CustomerType,
         status: 'Lead' as CustomerStatus,
-    });
+      });
+    } catch (error) {
+      console.error('Unable to submit customer form', error);
+      setSubmitError(
+        error instanceof Error ? error.message : 'Unable to save customer'
+      );
+      return;
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -125,11 +138,14 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ isOpen, onClose, onAddCus
             </div>
 
             <div className="flex justify-end items-center p-4 border-t bg-gray-50 rounded-b-lg space-x-3">
-                <button type="button" onClick={onClose} className="bg-white border border-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors">
+                {submitError && (
+                  <p className="text-sm text-red-600 mr-auto">{submitError}</p>
+                )}
+                <button type="button" onClick={onClose} className="bg-white border border-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50" disabled={isSubmitting}>
                     Cancel
                 </button>
-                <button type="submit" className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors">
-                    Add Customer
+                <button type="submit" className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : 'Add Customer'}
                 </button>
             </div>
         </form>

@@ -7,7 +7,7 @@ import { InformationCircleIcon } from './icons/InformationCircleIcon';
 import { UploadIcon } from './icons/UploadIcon';
 
 interface ListCarForSaleProps {
-    onPublish: (vehicleData: Omit<Vehicle, 'id'>) => void;
+    onPublish: (vehicleData: Omit<Vehicle, 'id'>) => Promise<void> | void;
     onCancel: () => void;
 }
 
@@ -41,6 +41,8 @@ const ListCarForSale: React.FC<ListCarForSaleProps> = ({ onPublish, onCancel }) 
         contactPhone: '',
         contactEmail: '',
     });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     const handleNext = () => setCurrentStep(prev => Math.min(prev + 1, STEPS.length));
     const handlePrev = () => setCurrentStep(prev => Math.max(prev - 1, 1));
@@ -60,9 +62,19 @@ const ListCarForSale: React.FC<ListCarForSaleProps> = ({ onPublish, onCancel }) 
         }
     };
     
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onPublish(formData as Omit<Vehicle, 'id'>);
+        setSubmitError(null);
+        setIsSubmitting(true);
+        try {
+            await onPublish(formData as Omit<Vehicle, 'id'>);
+        } catch (error) {
+            console.error('Unable to submit vehicle listing', error);
+            setSubmitError(error instanceof Error ? error.message : 'Unable to save listing');
+            return;
+        } finally {
+            setIsSubmitting(false);
+        }
     }
 
     const renderStepContent = () => {
@@ -110,17 +122,22 @@ const ListCarForSale: React.FC<ListCarForSaleProps> = ({ onPublish, onCancel }) 
                 <form onSubmit={handleSubmit}>
                     <div className="bg-white rounded-lg border border-gray-200 p-8 mb-6">
                         {renderStepContent()}
+                        {submitError && (
+                            <div className="mt-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {submitError}
+                            </div>
+                        )}
                         <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
                              <button type="button" onClick={handlePrev} className={`px-6 py-2 rounded-lg font-semibold text-sm ${currentStep === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`} disabled={currentStep === 1}>
                                 Previous
                             </button>
                             {currentStep < STEPS.length ? (
-                                <button type="button" onClick={handleNext} className="bg-primary-600 text-white font-semibold px-6 py-2 rounded-lg text-sm hover:bg-primary-700">
+                                <button type="button" onClick={handleNext} className="bg-primary-600 text-white font-semibold px-6 py-2 rounded-lg text-sm hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed" disabled={isSubmitting}>
                                     Next Step
                                 </button>
                             ) : (
-                                <button type="submit" className="bg-green-600 text-white font-semibold px-6 py-2 rounded-lg text-sm hover:bg-green-700">
-                                    Publish Listing
+                                <button type="submit" className="bg-green-600 text-white font-semibold px-6 py-2 rounded-lg text-sm hover:bg-green-700 disabled:opacity-50" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Saving...' : 'Publish Listing'}
                                 </button>
                             )}
                         </div>

@@ -11,6 +11,7 @@ import type {
   ReportsData,
 } from './types';
 import { crmDataProvider } from './services/dataProvider';
+import { submitCustomerForm, submitVehicleForm } from './services/formSubmissionService';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Header from './components/Header';
@@ -100,57 +101,95 @@ const App: React.FC = () => {
     [dealerships]
   );
   
-  const handleSaveVehicle = useCallback((vehicleData: Omit<Vehicle, 'id'>) => {
-    if (!activeDealershipId) return;
+  const handleSaveVehicle = useCallback(
+    async (vehicleData: Omit<Vehicle, 'id'>) => {
+      if (!activeDealershipId) {
+        throw new Error('Select a dealership before adding vehicles.');
+      }
 
-    const newVehicle: Vehicle = {
-      ...vehicleData,
-      id: `v${Date.now()}`,
-      status: 'Available',
-      imageUrl: `https://picsum.photos/seed/${Date.now()}/400/300`,
-      vin: `VIN${Date.now()}`.slice(0, 17).toUpperCase(),
-    };
+      try {
+        await submitVehicleForm(
+          {
+            ...vehicleData,
+            dealershipId: activeDealershipId,
+            dealershipName: activeDealership?.name,
+          },
+          'VEHICLE_LISTING'
+        );
+      } catch (error) {
+        console.error('Failed to persist vehicle listing submission', error);
+        throw error;
+      }
 
-    setDealerships((prevDealerships) =>
-      prevDealerships.map((dealer) => {
-        if (dealer.id === activeDealershipId) {
-          const updatedVehicles = [...dealer.vehicles, newVehicle];
-          return { ...dealer, vehicles: updatedVehicles };
-        }
-        return dealer;
-      })
-    );
+      const newVehicle: Vehicle = {
+        ...vehicleData,
+        id: `v${Date.now()}`,
+        status: 'Available',
+        imageUrl: `https://picsum.photos/seed/${Date.now()}/400/300`,
+        vin: `VIN${Date.now()}`.slice(0, 17).toUpperCase(),
+      };
 
-    const newNotification: Notification = {
-      id: `notif-${Date.now()}`,
-      title: 'New Vehicle Listed',
-      message: `A ${newVehicle.make} ${newVehicle.model} was added to ${activeDealership?.name}.`,
-      timestamp: new Date(),
-      read: false,
-      type: 'vehicle',
-    };
-    setNotifications(prev => [newNotification, ...prev]);
-
-    setActiveView('inventory');
-  }, [activeDealershipId, activeDealership]);
-
-  const handleUpdateVehicle = useCallback((updatedVehicle: Vehicle) => {
-    if (!activeDealershipId) return;
-
-    setDealerships(prevDealerships =>
-        prevDealerships.map(dealer => {
-            if (dealer.id === activeDealershipId) {
-                return {
-                    ...dealer,
-                    vehicles: dealer.vehicles.map(v =>
-                        v.id === updatedVehicle.id ? updatedVehicle : v
-                    ),
-                };
-            }
-            return dealer;
+      setDealerships((prevDealerships) =>
+        prevDealerships.map((dealer) => {
+          if (dealer.id === activeDealershipId) {
+            const updatedVehicles = [...dealer.vehicles, newVehicle];
+            return { ...dealer, vehicles: updatedVehicles };
+          }
+          return dealer;
         })
-    );
-  }, [activeDealershipId]);
+      );
+
+      const newNotification: Notification = {
+        id: `notif-${Date.now()}`,
+        title: 'New Vehicle Listed',
+        message: `A ${newVehicle.make} ${newVehicle.model} was added to ${activeDealership?.name}.`,
+        timestamp: new Date(),
+        read: false,
+        type: 'vehicle',
+      };
+      setNotifications((prev) => [newNotification, ...prev]);
+
+      setActiveView('inventory');
+    },
+    [activeDealership, activeDealershipId]
+  );
+
+  const handleUpdateVehicle = useCallback(
+    async (updatedVehicle: Vehicle) => {
+      if (!activeDealershipId) {
+        throw new Error('Select a dealership before updating vehicles.');
+      }
+
+      try {
+        await submitVehicleForm(
+          {
+            ...updatedVehicle,
+            dealershipId: activeDealershipId,
+            updatedFromInventory: true,
+          },
+          'VEHICLE_UPDATE'
+        );
+      } catch (error) {
+        console.error('Failed to persist vehicle update submission', error);
+        throw error;
+      }
+
+      setDealerships((prevDealerships) =>
+        prevDealerships.map((dealer) => {
+          if (dealer.id === activeDealershipId) {
+            return {
+              ...dealer,
+              vehicles: dealer.vehicles.map((v) =>
+                v.id === updatedVehicle.id ? updatedVehicle : v
+              ),
+            };
+          }
+          return dealer;
+        })
+      );
+    },
+    [activeDealershipId]
+  );
 
   const handleDeleteVehicle = useCallback((vehicleId: string) => {
     if (!activeDealershipId) return;
@@ -170,32 +209,54 @@ const App: React.FC = () => {
     }
   }, [activeDealershipId]);
 
-  const handleAddCustomer = useCallback((customerData: Omit<Customer, 'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'>) => {
-    const nameParts = customerData.name.trim().split(' ');
-    const initials = (`${nameParts[0]?.[0] || ''}${nameParts.length > 1 ? nameParts[nameParts.length - 1]?.[0] || '' : ''}`).toUpperCase();
+  const handleAddCustomer = useCallback(
+    async (
+      customerData: Omit<
+        Customer,
+        'id' | 'initials' | 'totalSpent' | 'purchases' | 'enquiries' | 'lastContact'
+      >
+    ) => {
+      try {
+        await submitCustomerForm(customerData);
+      } catch (error) {
+        console.error('Failed to persist customer form submission', error);
+        throw error;
+      }
 
-    const newCustomer: Customer = {
-      ...customerData,
-      id: `c${Date.now()}`,
-      initials,
-      totalSpent: 0,
-      purchases: 0,
-      enquiries: 1,
-      lastContact: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    };
-    setCustomers(prevCustomers => [newCustomer, ...prevCustomers]);
+      const nameParts = customerData.name.trim().split(' ');
+      const initials = (
+        `${nameParts[0]?.[0] || ''}${
+          nameParts.length > 1 ? nameParts[nameParts.length - 1]?.[0] || '' : ''
+        }`
+      ).toUpperCase();
 
-    const newNotification: Notification = {
-      id: `notif-${Date.now()}`,
-      title: 'New Customer Added',
-      message: `${newCustomer.name} from ${newCustomer.company} is now a customer.`,
-      timestamp: new Date(),
-      read: false,
-      type: 'customer',
-    };
-    setNotifications(prev => [newNotification, ...prev]);
+      const newCustomer: Customer = {
+        ...customerData,
+        id: `c${Date.now()}`,
+        initials,
+        totalSpent: 0,
+        purchases: 0,
+        enquiries: 1,
+        lastContact: new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+      };
+      setCustomers((prevCustomers) => [newCustomer, ...prevCustomers]);
 
-  }, []);
+      const newNotification: Notification = {
+        id: `notif-${Date.now()}`,
+        title: 'New Customer Added',
+        message: `${newCustomer.name} from ${newCustomer.company} is now a customer.`,
+        timestamp: new Date(),
+        read: false,
+        type: 'customer',
+      };
+      setNotifications((prev) => [newNotification, ...prev]);
+    },
+    []
+  );
 
   const handleMarkNotificationsRead = useCallback(() => {
     setNotifications(prevNotifications => 

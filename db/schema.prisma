@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/prisma"
 }
 
 model User {
@@ -29,4 +30,17 @@ model Post {
 enum Role {
   USER
   ADMIN
+}
+
+enum FormType {
+  VEHICLE_LISTING
+  VEHICLE_UPDATE
+  CUSTOMER_CREATE
+}
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  formType  FormType
+  payload   Json
 }

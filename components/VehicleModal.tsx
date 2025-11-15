@@ -5,7 +5,7 @@ import { UploadIcon } from './icons/UploadIcon';
 interface VehicleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (vehicle: Vehicle) => void;
+  onSave: (vehicle: Vehicle) => Promise<void> | void;
   vehicle: Vehicle | null;
 }
 
@@ -20,6 +20,8 @@ type TabName = 'specifications' | 'features' | 'description';
 
 const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, vehicle }) => {
   const [formData, setFormData] = useState<Partial<Vehicle>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>('specifications');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,10 +62,20 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, ve
     }
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    onSave(formData as Vehicle);
-    onClose();
+    setSaveError(null);
+    setIsSaving(true);
+    try {
+      await onSave(formData as Vehicle);
+      onClose();
+    } catch (error) {
+      console.error('Unable to save vehicle changes', error);
+      setSaveError(error instanceof Error ? error.message : 'Unable to save vehicle');
+      return;
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isOpen || !vehicle) return null;
@@ -169,11 +181,14 @@ const VehicleModal: React.FC<VehicleModalProps> = ({ isOpen, onClose, onSave, ve
         </form>
 
         <div className="flex justify-end items-center p-4 border-t bg-gray-50 rounded-b-lg space-x-3 flex-shrink-0">
-          <button type="button" onClick={onClose} className="bg-white border border-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors">
+          {saveError && (
+            <p className="text-sm text-red-600 mr-auto">{saveError}</p>
+          )}
+          <button type="button" onClick={onClose} className="bg-white border border-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50" disabled={isSaving}>
             Cancel
           </button>
-          <button type="button" onClick={handleSubmit} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors">
-            Save Changes
+          <button type="button" onClick={handleSubmit} className="bg-primary-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50" disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
